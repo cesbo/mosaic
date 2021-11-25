@@ -122,7 +122,7 @@ func taskStep(urlList []string) {
 		step := (len(playlist.Items) + threads - 1) / threads
 
 		for i := 0; i < len(playlist.Items); i += step {
-			wait.Add(0)
+			wait.Add(1)
 			go makeScreenshots(&wait, playlist, i, i+step)
 		}
 
