@@ -14,14 +14,27 @@ import (
 )
 
 var (
-	addr = flag.String("a", ":8001", "HTTP server address")
+	addr    = flag.String("a", ":8001", "HTTP server address")
+	threads = flag.Int("t", 10, "Number of threads")
 )
+
+type Image struct {
+	Name string
+	Data []byte
+}
+
+type App struct {
+	Config struct {
+		Playlists []string
+	}
+
+	Images []Image
+}
 
 func getScreenshot(url string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	// TODO: use /
 	cmd := exec.CommandContext(
 		ctx,
 		"/usr/bin/env",
@@ -78,37 +91,34 @@ func getPlaylist(url string) (*Playlist, error) {
 	return playlist, nil
 }
 
-func makeScreenshot(idx int, url string) error {
-	png, err := getScreenshot(url)
+func makeScreenshot(app *App, channel *Channel) error {
+	png, err := getScreenshot(channel.Address)
 	if err != nil {
 		return fmt.Errorf("make screenshot: %w", err)
 	}
 
-	fileName := fmt.Sprintf("/Users/and/Downloads/%d.png", idx)
-	if err := os.WriteFile(fileName, png, 0644); err != nil {
-		return fmt.Errorf("save png: %w", err)
+	image := Image{
+		Name: channel.Name,
+		Data: png,
 	}
+
+	app.Images = append([]Image{image}, app.Images...)
 
 	return nil
 }
 
-func makeScreenshots(wait *sync.WaitGroup, playlist *Playlist, skip int, limit int) {
-	if limit > len(playlist.Items) {
-		limit = len(playlist.Items)
-	}
-
-	for i := skip; i < limit; i++ {
-		addr := playlist.Items[i].Address
-		if err := makeScreenshot(i, addr); err != nil {
-			fmt.Printf("error on channel %s: %s\n", addr, err)
+func makeScreenshots(wait *sync.WaitGroup, app *App, channels []Channel) {
+	for _, item := range channels {
+		if err := makeScreenshot(app, &item); err != nil {
+			fmt.Printf("error on channel %s: %s\n", item.Address, err)
 		}
 	}
 
 	wait.Done()
 }
 
-func taskStep(urlList []string) {
-	for _, url := range urlList {
+func taskStep(app *App) {
+	for _, url := range app.Config.Playlists {
 		playlist, err := getPlaylist(url)
 
 		if err != nil {
@@ -118,12 +128,17 @@ func taskStep(urlList []string) {
 
 		var wait sync.WaitGroup
 
-		threads := 5
-		step := (len(playlist.Items) + threads - 1) / threads
+		step := (len(playlist.Items) + *threads - 1) / *threads
 
-		for i := 0; i < len(playlist.Items); i += step {
+		for i := 0; i < len(playlist.Items); {
+			z := i + step
+			if z > len(playlist.Items) {
+				z = len(playlist.Items)
+			}
+
 			wait.Add(1)
-			go makeScreenshots(&wait, playlist, i, i+step)
+			go makeScreenshots(&wait, app, playlist.Items[i:z])
+			i = z
 		}
 
 		wait.Wait()
@@ -132,14 +147,16 @@ func taskStep(urlList []string) {
 	fmt.Println("DONE")
 }
 
-func task(urlList []string) {
+func task(app *App) {
 	// for {
-	taskStep(urlList)
+	taskStep(app)
 	// }
 }
 
-func handle(ctx *fasthttp.RequestCtx) {
-	fmt.Fprintf(ctx, "Hi there! RequestURI is %q", ctx.RequestURI())
+func (app *App) handle(ctx *fasthttp.RequestCtx) {
+	for _, image := range app.Images {
+		fmt.Fprintf(ctx, "%s\n", image.Name)
+	}
 }
 
 func usage() {
@@ -157,13 +174,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	urlList := flag.Args()
+	app := new(App)
+	app.Config.Playlists = flag.Args()
 
 	/* Screenshot task */
 
-	go task(urlList)
+	go task(app)
 
 	/* HTTP Server */
 
-	fasthttp.ListenAndServe(*addr, handle)
+	fasthttp.ListenAndServe(*addr, app.handle)
 }
