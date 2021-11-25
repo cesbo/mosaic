@@ -2,7 +2,7 @@ package main
 
 import (
 	"bufio"
-	"errors"
+	"fmt"
 	"strings"
 )
 
@@ -54,15 +54,15 @@ func parseInfo(line string) []string {
 	return strings.FieldsFunc(line, fieldCheck)
 }
 
-func NewPlaylist(source string) (playlist *Playlist, err error) {
+func NewPlaylist(source string) (*Playlist, error) {
 	scanner := bufio.NewScanner(strings.NewReader(source))
 
 	if !scanner.Scan() {
-		return nil, errors.New("empty playlist")
+		return nil, fmt.Errorf("empty playlist")
 	}
 
 	if !strings.HasPrefix(scanner.Text(), "#EXTM3U") {
-		return nil, errors.New("invalid playlist format")
+		return nil, fmt.Errorf("invalid playlist format")
 	}
 
 	p := new(Playlist)
