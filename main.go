@@ -2,12 +2,15 @@ package main
 
 import (
 	"context"
+	"embed"
+	"encoding/base64"
 	"flag"
 	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"sync"
+	"text/template"
 	"time"
 
 	"github.com/valyala/fasthttp"
@@ -18,9 +21,12 @@ var (
 	threads = flag.Int("t", 10, "Number of threads")
 )
 
+//go:embed assets
+var assets embed.FS
+
 type Image struct {
 	Name string
-	Data []byte
+	Data string
 }
 
 type App struct {
@@ -94,12 +100,15 @@ func getPlaylist(url string) (*Playlist, error) {
 func makeScreenshot(app *App, channel *Channel) error {
 	png, err := getScreenshot(channel.Address)
 	if err != nil {
-		return fmt.Errorf("make screenshot: %w", err)
+		png, err = assets.ReadFile("assets/error.png")
+		if err != nil {
+			panic(err)
+		}
 	}
 
 	image := Image{
 		Name: channel.Name,
-		Data: png,
+		Data: base64.StdEncoding.EncodeToString(png),
 	}
 
 	app.Images = append([]Image{image}, app.Images...)
@@ -154,9 +163,22 @@ func task(app *App) {
 }
 
 func (app *App) handle(ctx *fasthttp.RequestCtx) {
-	for _, image := range app.Images {
-		fmt.Fprintf(ctx, "%s\n", image.Name)
+	tmpl, err := template.ParseFS(assets, "assets/index.html")
+	if err != nil {
+		ctx.Error(fmt.Sprintf("%s", err), 500)
+		return
 	}
+
+	type IndexData struct {
+		Images []Image
+	}
+
+	data := IndexData{
+		Images: app.Images,
+	}
+
+	ctx.SetContentType("text/html; charset=utf-8")
+	tmpl.Execute(ctx.Response.BodyWriter(), data)
 }
 
 func usage() {
