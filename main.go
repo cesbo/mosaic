@@ -8,6 +8,7 @@ import (
 	"os"
 	"sync"
 	"text/template"
+	"time"
 
 	"github.com/valyala/fasthttp"
 )
@@ -15,21 +16,23 @@ import (
 var (
 	addr    = flag.String("a", ":8001", "HTTP server address")
 	threads = flag.Int("t", 10, "Number of threads")
-	images  = flag.Int("i", 40, "Number of images on page")
+	images  = flag.Int("i", 4, "Number of images per thread")
+	refresh = flag.Int("r", 10, "Refresh interval in seconds")
 )
 
 //go:embed assets
 var assets embed.FS
 
 type Image struct {
-	Name  string
-	Data  string
-	Error string
+	Name string
+	Data string
 }
 
 type App struct {
 	Config struct {
-		Playlists []string
+		Refresh     int
+		ImagesLimit int
+		Playlists   []string
 	}
 
 	Images []Image
@@ -45,13 +48,12 @@ func min(a, b int) int {
 
 func screenshotTask(wait *sync.WaitGroup, app *App, channels []Channel) {
 	for _, channel := range channels {
-		png, err := takeScreenshot(channel.Address)
 
 		var image Image
+		png, err := TakeScreenshot(channel.Address)
 		if err != nil {
 			image = Image{
-				Name:  channel.Name,
-				Error: fmt.Sprintf("%s", err),
+				Name: channel.Name,
 			}
 		} else {
 			image = Image{
@@ -60,7 +62,7 @@ func screenshotTask(wait *sync.WaitGroup, app *App, channels []Channel) {
 			}
 		}
 
-		limit := min(*images-1, len(app.Images))
+		limit := min(app.Config.ImagesLimit-1, len(app.Images))
 		app.Images = append([]Image{image}, app.Images[:limit]...)
 	}
 
@@ -68,20 +70,22 @@ func screenshotTask(wait *sync.WaitGroup, app *App, channels []Channel) {
 }
 
 func mainTaskStep(app *App) {
-	for _, url := range app.Config.Playlists {
-		playlist, err := GetPlaylist(url)
+	playlist := new(Playlist)
 
-		if err != nil {
+	// Get all playlists
+	for _, url := range app.Config.Playlists {
+		if err := playlist.GetPlaylist(url); err != nil {
 			fmt.Printf("playlist %s: %s\n", url, err)
 			continue
 		}
+	}
 
+	// Launch screenshot tasks
+	for i := 0; i < len(playlist.Items); {
 		var wait sync.WaitGroup
 
-		step := (len(playlist.Items) + *threads - 1) / *threads
-
-		for i := 0; i < len(playlist.Items); {
-			z := min(i+step, len(playlist.Items))
+		for y := 0; y < (*threads) && i < len(playlist.Items); y++ {
+			z := min(i+(*images), len(playlist.Items))
 
 			wait.Add(1)
 			go screenshotTask(&wait, app, playlist.Items[i:z])
@@ -90,11 +94,21 @@ func mainTaskStep(app *App) {
 		}
 
 		wait.Wait()
+		time.Sleep(time.Duration(*refresh) * time.Second)
 	}
 }
 
 func mainTask(app *App) {
-	mainTaskStep(app)
+	for {
+		start := time.Now()
+		mainTaskStep(app)
+		elapsed := time.Since(start)
+
+		// Limit requests rate
+		if 30 > elapsed.Seconds() {
+			time.Sleep((30 - elapsed) * time.Second)
+		}
+	}
 }
 
 func (app *App) handle(ctx *fasthttp.RequestCtx) {
@@ -104,16 +118,8 @@ func (app *App) handle(ctx *fasthttp.RequestCtx) {
 		return
 	}
 
-	type IndexData struct {
-		Images []Image
-	}
-
-	data := IndexData{
-		Images: app.Images,
-	}
-
 	ctx.SetContentType("text/html; charset=utf-8")
-	tmpl.Execute(ctx.Response.BodyWriter(), data)
+	tmpl.Execute(ctx.Response.BodyWriter(), app)
 }
 
 func usage() {
@@ -132,6 +138,8 @@ func main() {
 	}
 
 	app := new(App)
+	app.Config.Refresh = *refresh
+	app.Config.ImagesLimit = (*threads) * (*images)
 	app.Config.Playlists = flag.Args()
 
 	/* Screenshot task */

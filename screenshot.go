@@ -8,7 +8,8 @@ import (
 	"time"
 )
 
-func takeScreenshot(url string) ([]byte, error) {
+// Make screenshot by stream link with ffmpeg
+func TakeScreenshot(url string) ([]byte, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 

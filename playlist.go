@@ -56,18 +56,17 @@ func parseInfo(line string) []string {
 	return strings.FieldsFunc(line, fieldCheck)
 }
 
-func parsePlaylist(source string) (*Playlist, error) {
+// Parse m3u/m3u8 file
+func (playlist *Playlist) parsePlaylist(source string) error {
 	scanner := bufio.NewScanner(strings.NewReader(source))
 
 	if !scanner.Scan() {
-		return nil, fmt.Errorf("empty playlist")
+		return fmt.Errorf("empty playlist")
 	}
 
 	if !strings.HasPrefix(scanner.Text(), "#EXTM3U") {
-		return nil, fmt.Errorf("invalid playlist format")
+		return fmt.Errorf("invalid playlist format")
 	}
-
-	p := new(Playlist)
 
 	isInfo := false
 
@@ -84,7 +83,7 @@ func parsePlaylist(source string) (*Playlist, error) {
 			channel := new(Channel)
 			channel.Name = parts[len(parts)-1]
 
-			p.Items = append(p.Items, *channel)
+			playlist.Items = append(playlist.Items, *channel)
 			isInfo = true
 
 			continue
@@ -95,30 +94,29 @@ func parsePlaylist(source string) (*Playlist, error) {
 		}
 
 		if isInfo {
-			p.Items[len(p.Items)-1].Address = line
+			playlist.Items[len(playlist.Items)-1].Address = line
 			isInfo = false
 		}
 	}
 
-	return p, nil
+	return nil
 }
 
-func GetPlaylist(url string) (*Playlist, error) {
+// Populate playlist object from the m3u8 link
+func (playlist *Playlist) GetPlaylist(url string) error {
 	statusCode, body, err := fasthttp.Get(nil, url)
 
 	if err != nil {
-		return nil, fmt.Errorf("request failed: %w", err)
+		return fmt.Errorf("request failed: %w", err)
 	}
 
 	if statusCode != fasthttp.StatusOK {
-		return nil, fmt.Errorf("request failed: %d", statusCode)
+		return fmt.Errorf("request failed: %d", statusCode)
 	}
 
-	playlist, err := parsePlaylist(string(body))
-
-	if err != nil {
-		return nil, fmt.Errorf("parse failed: %w", err)
+	if err := playlist.parsePlaylist(string(body)); err != nil {
+		return fmt.Errorf("parse failed: %w", err)
 	}
 
-	return playlist, nil
+	return nil
 }
