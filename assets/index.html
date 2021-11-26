@@ -7,41 +7,67 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 	<meta http-equiv="refresh" content="{{.Config.Refresh}}" />
 	<style>
+	*, ::before, ::after {
+		box-sizing: border-box;
+	}
+	html {
+		font-size: 16px;
+	}
+	html, body, div, form, pre, h1, h2, h3, h4, h5 {
+		display: block;
+		margin: 0;
+		padding: 0;
+		border: 0;
+		outline: 0;
+	}
 	body {
+		font-family: sans-serif;
+		font-weight: normal;
+		color: hsl(0, 0%, 100%);
+		background-color: hsl(220, 10%, 20%);
+		scroll-behavior: smooth;
+		text-rendering: optimizeSpeed;
+	}
+	.container {
 		display: grid;
 		grid-template-columns: repeat(auto-fill,minmax(160px,1fr));
-		grid-gap: 1px;
-	}
-	img {
-		width: 100%;
+		grid-gap: 2px;
+		padding: 2px;
 	}
 	.cell {
 		display: flex;
 		flex-direction: column;
+		align-content: center;
 	}
 	.cell>*:first-child {
 		flex-grow: 1;
 	}
-	.error {
+	.cell img {
+		width: 100%;
+	}
+	.cell .error {
 		background-color: red;
 	}
 	.name {
 		white-space: nowrap;
 		overflow: hidden;
 		text-overflow: ellipsis;
+		line-height: 1.4em;
 	}
 	</style>
 </head>
 <body>
-	{{range .Images}}
-	<div class="cell">
-		{{if .Data}}
-		<img src="data:image/png;base64,{{.Data}}" />
-		{{else}}
-		<div class="error"></div>
+	<div class="container">
+		{{range .Images}}
+		<div class="cell">
+			{{if .Data}}
+			<img src="data:image/png;base64,{{.Data}}" />
+			{{else}}
+			<div class="error"></div>
+			{{end}}
+			<div class="name">{{.Name}}</div>
+		</div>
 		{{end}}
-		<div class="name">{{.Name}}</div>
 	</div>
-	{{end}}
 </body>
 </html>
