@@ -14,6 +14,7 @@ import (
 )
 
 var (
+	version = flag.Bool("v", false, "Show version info")
 	addr    = flag.String("a", ":8001", "HTTP server address")
 	threads = flag.Int("t", 10, "Number of threads")
 	images  = flag.Int("i", 4, "Number of images per thread")
@@ -22,6 +23,8 @@ var (
 
 //go:embed assets
 var assets embed.FS
+
+//go:generate go run cmd/version/main.go
 
 type Image struct {
 	Name string
@@ -131,6 +134,11 @@ func main() {
 	/* Init app */
 	flag.Usage = usage
 	flag.Parse()
+
+	if *version {
+		fmt.Printf("Mosaic %s commit:%s\n", BuildDate, BuildCommit)
+		os.Exit(0)
+	}
 
 	if flag.NArg() == 0 {
 		flag.Usage()
