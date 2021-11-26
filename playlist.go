@@ -4,6 +4,8 @@ import (
 	"bufio"
 	"fmt"
 	"strings"
+
+	"github.com/valyala/fasthttp"
 )
 
 type Channel struct {
@@ -54,7 +56,7 @@ func parseInfo(line string) []string {
 	return strings.FieldsFunc(line, fieldCheck)
 }
 
-func NewPlaylist(source string) (*Playlist, error) {
+func parsePlaylist(source string) (*Playlist, error) {
 	scanner := bufio.NewScanner(strings.NewReader(source))
 
 	if !scanner.Scan() {
@@ -99,4 +101,24 @@ func NewPlaylist(source string) (*Playlist, error) {
 	}
 
 	return p, nil
+}
+
+func GetPlaylist(url string) (*Playlist, error) {
+	statusCode, body, err := fasthttp.Get(nil, url)
+
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+
+	if statusCode != fasthttp.StatusOK {
+		return nil, fmt.Errorf("request failed: %d", statusCode)
+	}
+
+	playlist, err := parsePlaylist(string(body))
+
+	if err != nil {
+		return nil, fmt.Errorf("parse failed: %w", err)
+	}
+
+	return playlist, nil
 }
