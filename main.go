@@ -3,7 +3,7 @@ package main
 import (
 	"embed"
 	"encoding/base64"
-	"flag"
+	"encoding/json"
 	"fmt"
 	"os"
 	"sync"
@@ -11,14 +11,6 @@ import (
 	"time"
 
 	"github.com/valyala/fasthttp"
-)
-
-var (
-	version = flag.Bool("v", false, "Show version info")
-	addr    = flag.String("a", ":8001", "HTTP server address")
-	threads = flag.Int("t", 10, "Number of threads")
-	images  = flag.Int("i", 4, "Number of images per thread")
-	refresh = flag.Int("r", 10, "Refresh interval in seconds")
 )
 
 //go:embed assets
@@ -31,14 +23,19 @@ type Image struct {
 	Data string
 }
 
-type App struct {
-	Config struct {
-		Refresh     int
-		ImagesLimit int
-		Playlists   []string
-	}
+type Config struct {
+	Listen    string   `json:"listen"`
+	Threads   int      `json:"threads"`
+	Images    int      `json:"images"`
+	Refresh   int      `json:"refresh"`
+	Playlists []string `json:"playlists"`
+}
 
-	Images []Image
+type App struct {
+	Config
+
+	ImagesLimit int // Threads * Images
+	Images      []Image
 }
 
 func min(a, b int) int {
@@ -65,7 +62,7 @@ func screenshotTask(wait *sync.WaitGroup, app *App, channels []Channel) {
 			}
 		}
 
-		limit := min(app.Config.ImagesLimit-1, len(app.Images))
+		limit := min(app.ImagesLimit-1, len(app.Images))
 		app.Images = append([]Image{image}, app.Images[:limit]...)
 	}
 
@@ -87,8 +84,8 @@ func mainTaskStep(app *App) {
 	for i := 0; i < len(playlist.Items); {
 		var wait sync.WaitGroup
 
-		for y := 0; y < (*threads) && i < len(playlist.Items); y++ {
-			z := min(i+(*images), len(playlist.Items))
+		for y := 0; y < app.Config.Threads && i < len(playlist.Items); y++ {
+			z := min(i+app.Config.Images, len(playlist.Items))
 
 			wait.Add(1)
 			go screenshotTask(&wait, app, playlist.Items[i:z])
@@ -97,7 +94,7 @@ func mainTaskStep(app *App) {
 		}
 
 		wait.Wait()
-		time.Sleep(time.Duration(*refresh) * time.Second)
+		time.Sleep(time.Duration(app.Config.Refresh) * time.Second)
 	}
 }
 
@@ -126,29 +123,69 @@ func (app *App) handle(ctx *fasthttp.RequestCtx) {
 }
 
 func usage() {
-	fmt.Printf("Usage: %s [OPTIONS] URL ...\n", os.Args[0])
-	flag.PrintDefaults()
+	fmt.Printf("%s command|config\n", os.Args[0])
+	fmt.Printf(`
+command:
+    help      print this help
+    version   print Mosaic version
+
+config        path to configuration file
+
+config format:
+{
+    "listen": ":8004",
+    "threads": 10,
+    "images": 4,
+    "refresh": 10,
+    "playlists": [
+        "http://example.com/playlist.m3u8"
+    ]
+}
+
+config options:
+    listen      - HTTP server address. default: ":8004"
+                  example: "127.0.0.1:8004", ":8004"
+    threads     - Number of threads. default: 10
+    images      - Number of images per threads. default: 4
+    refresh     - Refresh interval in seconds. default: 10
+    playlists   - List of links to playlists (m3u or m3u8). required
+`)
 }
 
 func main() {
-	/* Init app */
-	flag.Usage = usage
-	flag.Parse()
+	if len(os.Args) == 1 || os.Args[1] == "help" {
+		usage()
+		os.Exit(0)
+	}
 
-	if *version {
+	if os.Args[1] == "version" {
 		fmt.Printf("Mosaic %s commit:%s\n", BuildDate, BuildCommit)
 		os.Exit(0)
 	}
 
-	if flag.NArg() == 0 {
-		flag.Usage()
+	app := new(App)
+	app.Config.Listen = ":8004"
+	app.Config.Threads = 10
+	app.Config.Images = 4
+	app.Config.Refresh = 10
+
+	fd, err := os.Open(os.Args[1])
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "config error: %s", err)
 		os.Exit(1)
 	}
 
-	app := new(App)
-	app.Config.Refresh = *refresh
-	app.Config.ImagesLimit = (*threads) * (*images)
-	app.Config.Playlists = flag.Args()
+	defer fd.Close()
+
+	decoder := json.NewDecoder(fd)
+	if err := decoder.Decode(&app.Config); err != nil {
+		fmt.Fprintf(os.Stderr, "invalid config format: %s", err)
+		os.Exit(1)
+	}
+
+	fd.Close()
+
+	app.ImagesLimit = app.Config.Threads * app.Config.Images
 
 	/* Screenshot task */
 
@@ -156,5 +193,5 @@ func main() {
 
 	/* HTTP Server */
 
-	fasthttp.ListenAndServe(*addr, app.handle)
+	fasthttp.ListenAndServe(app.Config.Listen, app.handle)
 }
