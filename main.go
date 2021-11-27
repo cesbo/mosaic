@@ -37,6 +37,7 @@ type Config struct {
 type App struct {
 	Config
 
+	mu     sync.Mutex
 	Images []Image
 }
 
@@ -103,7 +104,9 @@ func mainTaskStep(app *App) {
 		wg.Wait()
 		close(ch)
 
+		app.mu.Lock()
 		app.Images = images
+		app.mu.Unlock()
 
 		time.Sleep(time.Duration(app.Config.Refresh) * time.Second)
 	}
@@ -130,7 +133,10 @@ func (app *App) handle(ctx *fasthttp.RequestCtx) {
 	}
 
 	ctx.SetContentType("text/html; charset=utf-8")
+
+	app.mu.Lock()
 	tmpl.Execute(ctx.Response.BodyWriter(), app)
+	app.mu.Unlock()
 }
 
 func usage() {
