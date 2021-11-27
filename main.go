@@ -34,8 +34,7 @@ type Config struct {
 type App struct {
 	Config
 
-	ImagesLimit int // Threads * Images
-	Images      []Image
+	Images []Image
 }
 
 func min(a, b int) int {
@@ -46,9 +45,10 @@ func min(a, b int) int {
 	}
 }
 
-func screenshotTask(wait *sync.WaitGroup, app *App, channels []Channel) {
-	for _, channel := range channels {
+func screenshotTask(ch chan<- Image, wg *sync.WaitGroup, channels []Channel) {
+	defer wg.Done()
 
+	for _, channel := range channels {
 		var image Image
 		png, err := TakeScreenshot(channel.Address)
 		if err != nil {
@@ -61,12 +61,8 @@ func screenshotTask(wait *sync.WaitGroup, app *App, channels []Channel) {
 				Data: base64.StdEncoding.EncodeToString(png),
 			}
 		}
-
-		limit := min(app.ImagesLimit-1, len(app.Images))
-		app.Images = append([]Image{image}, app.Images[:limit]...)
+		ch <- image
 	}
-
-	wait.Done()
 }
 
 func mainTaskStep(app *App) {
@@ -82,18 +78,30 @@ func mainTaskStep(app *App) {
 
 	// Launch screenshot tasks
 	for i := 0; i < len(playlist.Items); {
-		var wait sync.WaitGroup
+		var wg sync.WaitGroup
+		ch := make(chan Image)
 
 		for y := 0; y < app.Config.Threads && i < len(playlist.Items); y++ {
 			z := min(i+app.Config.Images, len(playlist.Items))
 
-			wait.Add(1)
-			go screenshotTask(&wait, app, playlist.Items[i:z])
+			wg.Add(1)
+			go screenshotTask(ch, &wg, playlist.Items[i:z])
 
 			i = z
 		}
 
-		wait.Wait()
+		var images []Image
+		go func() {
+			for image := range ch {
+				images = append(images, image)
+			}
+		}()
+
+		wg.Wait()
+		close(ch)
+
+		app.Images = images
+
 		time.Sleep(time.Duration(app.Config.Refresh) * time.Second)
 	}
 }
@@ -184,8 +192,6 @@ func main() {
 	}
 
 	fd.Close()
-
-	app.ImagesLimit = app.Config.Threads * app.Config.Images
 
 	/* Screenshot task */
 
