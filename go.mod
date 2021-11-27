@@ -1,4 +1,4 @@
-module github.com/cesbo/mosaic
+module mosaic
 
 go 1.17
 

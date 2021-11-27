@@ -11,6 +11,9 @@ import (
 	"time"
 
 	"github.com/valyala/fasthttp"
+
+	"mosaic/internal/playlist"
+	"mosaic/internal/screenshot"
 )
 
 //go:embed assets
@@ -45,12 +48,12 @@ func min(a, b int) int {
 	}
 }
 
-func screenshotTask(ch chan<- Image, wg *sync.WaitGroup, channels []Channel) {
+func screenshotTask(ch chan<- Image, wg *sync.WaitGroup, channels []playlist.Channel) {
 	defer wg.Done()
 
 	for _, channel := range channels {
 		var image Image
-		png, err := TakeScreenshot(channel.Address)
+		png, err := screenshot.TakeScreenshot(channel.Address)
 		if err != nil {
 			image = Image{
 				Name: channel.Name,
@@ -66,7 +69,7 @@ func screenshotTask(ch chan<- Image, wg *sync.WaitGroup, channels []Channel) {
 }
 
 func mainTaskStep(app *App) {
-	playlist := new(Playlist)
+	playlist := new(playlist.Playlist)
 
 	// Get all playlists
 	for _, url := range app.Config.Playlists {

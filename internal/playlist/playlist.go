@@ -1,4 +1,4 @@
-package main
+package playlist
 
 import (
 	"bufio"
