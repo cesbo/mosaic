@@ -42,7 +42,7 @@ func main() {
 		BuildCommit: commit,
 	}
 
-	out, err := os.Create("version.go")
+	out, err := os.Create("version_gen.go")
 	if err != nil {
 		panic(err)
 	}

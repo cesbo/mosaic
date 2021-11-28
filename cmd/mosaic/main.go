@@ -19,7 +19,7 @@ import (
 //go:embed assets
 var assets embed.FS
 
-//go:generate go run cmd/version/main.go
+//go:generate go run mosaic/cmd/version
 
 type Image struct {
 	Name string
