@@ -57,7 +57,7 @@ func parseInfo(line string) []string {
 }
 
 // Parse m3u/m3u8 file
-func (playlist *Playlist) parsePlaylist(source string) error {
+func (playlist *Playlist) ParsePlaylist(source string) error {
 	scanner := bufio.NewScanner(strings.NewReader(source))
 
 	if !scanner.Scan() {
@@ -114,7 +114,7 @@ func (playlist *Playlist) GetPlaylist(url string) error {
 		return fmt.Errorf("request failed: %d", statusCode)
 	}
 
-	if err := playlist.parsePlaylist(string(body)); err != nil {
+	if err := playlist.ParsePlaylist(string(body)); err != nil {
 		return fmt.Errorf("parse failed: %w", err)
 	}
 
