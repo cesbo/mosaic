@@ -12,6 +12,7 @@ import (
 
 	"github.com/valyala/fasthttp"
 
+	"mosaic/internal/help"
 	"mosaic/internal/playlist"
 	"mosaic/internal/screenshot"
 )
@@ -20,6 +21,13 @@ import (
 var assets embed.FS
 
 //go:generate go run mosaic/cmd/version
+
+var appInfo = help.AppInfo{
+	AppName:       "Mosaic",
+	VersionDate:   VersionDate,
+	VersionCommit: VersionCommit,
+	ExecPath:      os.Args[0],
+}
 
 type Image struct {
 	Name string
@@ -139,44 +147,14 @@ func (app *App) handle(ctx *fasthttp.RequestCtx) {
 	app.mu.Unlock()
 }
 
-func usage() {
-	fmt.Printf("%s command|config\n", os.Args[0])
-	fmt.Printf(`
-command:
-    help      print this help
-    version   print Mosaic version
-
-config        path to configuration file
-
-config format:
-{
-    "listen": ":8004",
-    "threads": 10,
-    "images": 4,
-    "refresh": 10,
-    "playlists": [
-        "http://example.com/playlist.m3u8"
-    ]
-}
-
-config options:
-    listen      - HTTP server address. default: ":8004"
-                  example: "127.0.0.1:8004", ":8004"
-    threads     - Number of threads. default: 10
-    images      - Number of images per threads. default: 4
-    refresh     - Refresh interval in seconds. default: 10
-    playlists   - List of links to playlists (m3u or m3u8). required
-`)
-}
-
 func main() {
 	if len(os.Args) == 1 || os.Args[1] == "help" {
-		usage()
+		help.Usage(os.Stdout, &appInfo)
 		os.Exit(0)
 	}
 
 	if os.Args[1] == "version" {
-		fmt.Printf("Mosaic %s commit:%s\n", BuildDate, BuildCommit)
+		help.Version(os.Stdout, &appInfo)
 		os.Exit(0)
 	}
 
