@@ -1,24 +1,12 @@
 package main
 
 import (
-	"embed"
-	"encoding/base64"
 	"fmt"
 	"os"
-	"sync"
-	"text/template"
-	"time"
 
-	"github.com/valyala/fasthttp"
-
-	"mosaic/internal/config"
 	"mosaic/internal/help"
-	"mosaic/internal/playlist"
-	"mosaic/internal/screenshot"
+	"mosaic/internal/mosaic"
 )
-
-//go:embed assets
-var assets embed.FS
 
 //go:generate go run mosaic/cmd/version
 
@@ -27,116 +15,6 @@ var appInfo = help.AppInfo{
 	VersionDate:   VersionDate,
 	VersionCommit: VersionCommit,
 	ExecPath:      os.Args[0],
-}
-
-type Image struct {
-	Name string
-	Data string
-}
-
-type App struct {
-	Config config.Config
-
-	mu     sync.Mutex
-	Images []Image
-}
-
-func min(a, b int) int {
-	if a > b {
-		return b
-	} else {
-		return a
-	}
-}
-
-func screenshotTask(ch chan<- Image, wg *sync.WaitGroup, channels []playlist.Channel) {
-	defer wg.Done()
-
-	for _, channel := range channels {
-		var image Image
-		png, err := screenshot.TakeScreenshot(channel.Address)
-		if err != nil {
-			image = Image{
-				Name: channel.Name,
-			}
-		} else {
-			image = Image{
-				Name: channel.Name,
-				Data: base64.StdEncoding.EncodeToString(png),
-			}
-		}
-		ch <- image
-	}
-}
-
-func mainTaskStep(app *App) {
-	playlist := new(playlist.Playlist)
-
-	// Get all playlists
-	for _, url := range app.Config.Playlists {
-		if err := playlist.GetPlaylist(url); err != nil {
-			fmt.Printf("playlist %s: %s\n", url, err)
-			continue
-		}
-	}
-
-	// Launch screenshot tasks
-	for i := 0; i < len(playlist.Items); {
-		var wg sync.WaitGroup
-		ch := make(chan Image)
-
-		for y := 0; y < app.Config.Threads && i < len(playlist.Items); y++ {
-			z := min(i+app.Config.Images, len(playlist.Items))
-
-			wg.Add(1)
-			go screenshotTask(ch, &wg, playlist.Items[i:z])
-
-			i = z
-		}
-
-		var images []Image
-		go func() {
-			for image := range ch {
-				images = append(images, image)
-			}
-		}()
-
-		wg.Wait()
-		close(ch)
-
-		app.mu.Lock()
-		app.Images = images
-		app.mu.Unlock()
-
-		time.Sleep(time.Duration(app.Config.Refresh) * time.Second)
-	}
-}
-
-func mainTask(app *App) {
-	for {
-		start := time.Now()
-		mainTaskStep(app)
-		elapsed := time.Since(start)
-
-		// Limit requests rate
-		if 30 > elapsed.Seconds() {
-			time.Sleep((30 - elapsed) * time.Second)
-		}
-	}
-}
-
-func (app *App) handle(ctx *fasthttp.RequestCtx) {
-	tmpl, err := template.ParseFS(assets, "assets/index.html")
-	if err != nil {
-		ctx.Error(fmt.Sprintf("%s", err), 500)
-		return
-	}
-
-	ctx.SetContentType("text/html; charset=utf-8")
-
-	app.mu.Lock()
-	tmpl.Execute(ctx.Response.BodyWriter(), app)
-	app.mu.Unlock()
 }
 
 func main() {
@@ -150,9 +28,8 @@ func main() {
 		os.Exit(0)
 	}
 
-	app := new(App)
+	app := new(mosaic.App)
 
-	// Defaults
 	app.Config.Listen = ":8004"
 	app.Config.Threads = 10
 	app.Config.Images = 4
@@ -163,11 +40,5 @@ func main() {
 		os.Exit(1)
 	}
 
-	/* Screenshot task */
-
-	go mainTask(app)
-
-	/* HTTP Server */
-
-	fasthttp.ListenAndServe(app.Config.Listen, app.handle)
+	app.Start()
 }
