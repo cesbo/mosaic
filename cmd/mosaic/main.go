@@ -8,14 +8,17 @@ import (
 	"mosaic/internal/mosaic"
 )
 
-//go:generate go run mosaic/cmd/version
+var (
+	versionDate   string
+	versionCommit string
 
-var appInfo = help.AppInfo{
-	AppName:       "Mosaic",
-	VersionDate:   VersionDate,
-	VersionCommit: VersionCommit,
-	ExecPath:      os.Args[0],
-}
+	appInfo = help.AppInfo{
+		AppName:       "Mosaic",
+		VersionDate:   versionDate,
+		VersionCommit: versionCommit,
+		ExecPath:      os.Args[0],
+	}
+)
 
 func main() {
 	if len(os.Args) == 1 || os.Args[1] == "help" {
