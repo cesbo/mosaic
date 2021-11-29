@@ -3,7 +3,6 @@ package main
 import (
 	"embed"
 	"encoding/base64"
-	"encoding/json"
 	"fmt"
 	"os"
 	"sync"
@@ -12,6 +11,7 @@ import (
 
 	"github.com/valyala/fasthttp"
 
+	"mosaic/internal/config"
 	"mosaic/internal/help"
 	"mosaic/internal/playlist"
 	"mosaic/internal/screenshot"
@@ -34,16 +34,8 @@ type Image struct {
 	Data string
 }
 
-type Config struct {
-	Listen    string   `json:"listen"`
-	Threads   int      `json:"threads"`
-	Images    int      `json:"images"`
-	Refresh   int      `json:"refresh"`
-	Playlists []string `json:"playlists"`
-}
-
 type App struct {
-	Config
+	Config config.Config
 
 	mu     sync.Mutex
 	Images []Image
@@ -159,26 +151,17 @@ func main() {
 	}
 
 	app := new(App)
+
+	// Defaults
 	app.Config.Listen = ":8004"
 	app.Config.Threads = 10
 	app.Config.Images = 4
 	app.Config.Refresh = 10
 
-	fd, err := os.Open(os.Args[1])
-	if err != nil {
+	if err := app.Config.Load(os.Args[1]); err != nil {
 		fmt.Fprintf(os.Stderr, "config error: %s", err)
 		os.Exit(1)
 	}
-
-	defer fd.Close()
-
-	decoder := json.NewDecoder(fd)
-	if err := decoder.Decode(&app.Config); err != nil {
-		fmt.Fprintf(os.Stderr, "invalid config format: %s", err)
-		os.Exit(1)
-	}
-
-	fd.Close()
 
 	/* Screenshot task */
 
