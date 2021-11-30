@@ -3,9 +3,10 @@ package playlist
 import (
 	"bufio"
 	"fmt"
+	"io"
+	"net/http"
 	"strings"
-
-	"github.com/valyala/fasthttp"
+	"time"
 )
 
 type Channel struct {
@@ -104,17 +105,27 @@ func (playlist *Playlist) ParsePlaylist(source string) error {
 
 // Populate playlist object from the m3u8 link
 func (playlist *Playlist) GetPlaylist(url string) error {
-	statusCode, body, err := fasthttp.Get(nil, url)
+	client := &http.Client{
+		Timeout: 3 * time.Second,
+	}
+	response, err := client.Get(url)
 
 	if err != nil {
 		return fmt.Errorf("request failed: %w", err)
 	}
 
-	if statusCode != fasthttp.StatusOK {
-		return fmt.Errorf("request failed: %d", statusCode)
+	defer response.Body.Close()
+
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("request failed: %d", response.StatusCode)
 	}
 
-	if err := playlist.ParsePlaylist(string(body)); err != nil {
+	buffer := new(strings.Builder)
+	if _, err := io.Copy(buffer, response.Body); err != nil {
+		return fmt.Errorf("read failed: %w", err)
+	}
+
+	if err := playlist.ParsePlaylist(buffer.String()); err != nil {
 		return fmt.Errorf("parse failed: %w", err)
 	}
 

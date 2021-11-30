@@ -7,11 +7,11 @@ import (
 	"mosaic/internal/config"
 	"mosaic/internal/playlist"
 	"mosaic/internal/screenshot"
+	"net/http"
+	"os"
 	"sync"
 	"text/template"
 	"time"
-
-	"github.com/valyala/fasthttp"
 )
 
 //go:embed assets
@@ -107,27 +107,41 @@ func (app *App) mainTask() {
 		elapsed := time.Since(start)
 
 		// Limit requests rate
-		if 30 > elapsed.Seconds() {
-			time.Sleep((30 - elapsed) * time.Second)
+		delay := 30 * time.Second
+		if delay > elapsed {
+			time.Sleep(delay - elapsed)
 		}
 	}
 }
 
-func (app *App) handle(ctx *fasthttp.RequestCtx) {
+func (app *App) indexHandler(w http.ResponseWriter, r *http.Request) {
 	tmpl, err := template.ParseFS(assets, "assets/index.html")
 	if err != nil {
-		ctx.Error(fmt.Sprintf("%s", err), 500)
-		return
+		panic(err)
 	}
 
-	ctx.SetContentType("text/html; charset=utf-8")
+	w.Header().Add("content-type", "text/html; charset=utf-8")
 
 	app.mu.Lock()
-	tmpl.Execute(ctx.Response.BodyWriter(), app)
+	tmpl.Execute(w, app)
 	app.mu.Unlock()
 }
 
 func (app *App) Start() {
 	go app.mainTask()
-	fasthttp.ListenAndServe(app.Config.Listen, app.handle)
+
+	router := http.NewServeMux()
+	router.HandleFunc("/", app.indexHandler)
+
+	server := &http.Server{
+		Handler:      router,
+		Addr:         app.Config.Listen,
+		WriteTimeout: 15 * time.Second,
+		ReadTimeout:  15 * time.Second,
+	}
+
+	if err := server.ListenAndServe(); err != nil {
+		fmt.Fprintf(os.Stderr, "failed to start server: %s", err)
+		os.Exit(1)
+	}
 }
