@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"mosaic/internal/config"
+	"mosaic/internal/help"
 	"mosaic/internal/playlist"
 	"mosaic/internal/screenshot"
 	"net/http"
@@ -120,7 +121,8 @@ func (app *App) indexHandler(w http.ResponseWriter, r *http.Request) {
 		panic(err)
 	}
 
-	w.Header().Add("content-type", "text/html; charset=utf-8")
+	w.Header().Add("Content-Type", "text/html; charset=utf-8")
+	w.Header().Add("Server", help.UserAgent)
 
 	app.mu.Lock()
 	tmpl.Execute(w, app)

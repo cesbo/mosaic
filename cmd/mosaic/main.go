@@ -8,26 +8,14 @@ import (
 	"mosaic/internal/mosaic"
 )
 
-var (
-	versionDate   string
-	versionCommit string
-
-	appInfo = help.AppInfo{
-		AppName:       "Mosaic",
-		VersionDate:   versionDate,
-		VersionCommit: versionCommit,
-		ExecPath:      os.Args[0],
-	}
-)
-
 func main() {
 	if len(os.Args) == 1 || os.Args[1] == "help" {
-		help.Usage(os.Stdout, &appInfo)
+		help.Usage(os.Stdout)
 		os.Exit(0)
 	}
 
 	if os.Args[1] == "version" {
-		help.Version(os.Stdout, &appInfo)
+		help.Version(os.Stdout)
 		os.Exit(0)
 	}
 

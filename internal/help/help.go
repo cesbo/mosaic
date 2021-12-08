@@ -3,17 +3,17 @@ package help
 import (
 	"fmt"
 	"io"
+	"os"
 )
 
-type AppInfo struct {
-	AppName       string
-	VersionDate   string
-	VersionCommit string
-	ExecPath      string
-}
+const (
+	AppName   string = "Mosaic"
+	UserAgent string = AppName + "/" + VersionDate
+)
 
-func Usage(wr io.Writer, info *AppInfo) {
-	Version(wr, info)
+func Usage(wr io.Writer) {
+	Version(wr)
+
 	fmt.Fprintf(wr, `
 Usage:
     %s command|config
@@ -43,9 +43,9 @@ config options:
     images      - Number of images per threads. default: 4
     refresh     - Refresh interval in seconds. default: 10
     playlists   - List of links to playlists (m3u or m3u8). required
-`, info.ExecPath)
+`, os.Args[0])
 }
 
-func Version(wr io.Writer, info *AppInfo) {
-	fmt.Fprintf(wr, "%s v%s (commit:%s)\n", info.AppName, info.VersionDate, info.VersionCommit)
+func Version(wr io.Writer) {
+	fmt.Fprintf(wr, "%s v%s (commit:%s)\n", AppName, VersionDate, VersionCommit)
 }
