@@ -4,15 +4,16 @@ import (
 	"embed"
 	"encoding/base64"
 	"fmt"
-	"mosaic/internal/config"
-	"mosaic/internal/help"
-	"mosaic/internal/playlist"
-	"mosaic/internal/screenshot"
 	"net/http"
 	"os"
 	"sync"
 	"text/template"
 	"time"
+
+	"mosaic/internal/config"
+	"mosaic/internal/help"
+	"mosaic/internal/playlist"
+	"mosaic/internal/screenshot"
 )
 
 //go:embed assets

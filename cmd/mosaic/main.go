@@ -10,12 +10,12 @@ import (
 
 func main() {
 	if len(os.Args) == 1 || os.Args[1] == "help" {
-		help.Usage(os.Stdout)
+		help.PrintHelp()
 		os.Exit(0)
 	}
 
 	if os.Args[1] == "version" {
-		help.Version(os.Stdout)
+		help.PrintVersion()
 		os.Exit(0)
 	}
 

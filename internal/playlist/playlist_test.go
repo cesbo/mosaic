@@ -1,8 +1,9 @@
 package playlist_test
 
 import (
-	"mosaic/internal/playlist"
 	"testing"
+
+	"mosaic/internal/playlist"
 )
 
 func TestParser(t *testing.T) {

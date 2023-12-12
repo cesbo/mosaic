@@ -2,19 +2,43 @@ package help
 
 import (
 	"fmt"
-	"io"
 	"os"
+	"runtime/debug"
+	"time"
 )
 
 const (
-	AppName   string = "Mosaic"
-	UserAgent string = AppName + "/" + VersionDate
+	AppName string = "Mosaic"
 )
 
-func Usage(wr io.Writer) {
-	Version(wr)
+var (
+	Version   string
+	UserAgent string
+)
 
-	fmt.Fprintf(wr, `
+func init() {
+	versionDate := "-"
+	versionCommit := "-"
+
+	if info, ok := debug.ReadBuildInfo(); ok {
+		for _, setting := range info.Settings {
+			switch setting.Key {
+			case "vcs.revision":
+				versionCommit = setting.Value[:8]
+			case "vcs.time":
+				if build, err := time.Parse(time.RFC3339, setting.Value); err == nil {
+					versionDate = build.Format("06.01")
+				}
+			}
+		}
+	}
+
+	Version = fmt.Sprintf("%s (commit:%s)", versionDate, versionCommit)
+	UserAgent = fmt.Sprintf("%s/%s", AppName, versionDate)
+}
+
+func PrintHelp() {
+	fmt.Printf(`
 Usage:
     %s command|config
 
@@ -46,6 +70,6 @@ config options:
 `, os.Args[0])
 }
 
-func Version(wr io.Writer) {
-	fmt.Fprintf(wr, "%s v%s (commit:%s)\n", AppName, VersionDate, VersionCommit)
+func PrintVersion() {
+	fmt.Printf("%s v%s\n", AppName, Version)
 }

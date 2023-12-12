@@ -3,7 +3,7 @@
 ## Build
 
 ```
-TARGET=amd64-linux go run mosaic/cmd/build
+go build ./cmd/mosaic
 ```
 
 ## Usage
